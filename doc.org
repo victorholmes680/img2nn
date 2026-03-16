@@ -1,0 +1,8 @@
+* Docs
+
+** Structure
+1. Accept the parameters user send
+2. Read the images depending on the two parameters by nothings stb_image.h and stb_image_write.h header files
+3. Parse the input data of neural network by images's pixels
+4. Realize the neural network implementation
+   
