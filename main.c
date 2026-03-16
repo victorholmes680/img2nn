@@ -2,6 +2,8 @@
 #include "nn.h"
 #include "stb_image.h"
 #include "stb_image_write.h"
+#include <raylib.h>
+#include <raymath.h>
 // extract the first argument from the input stream
 // and forward the pointer to next
 char *args_shift(int *argc, char ***argv) {
@@ -100,11 +102,64 @@ int main(int argc, char **argv)
 
     // make the sequence of the row of martix unordered
     mat_shuffle_rows(t);
-    
+
+    // block:initialize the neural network
     NN nn = nn_alloc(arch, ARRAY_LEN(arch));
     NN g = nn_alloc(arch, ARRAY_LEN(arch));
 
     nn_rand(nn, -1, 1);
+    // endblock
+
+    // initialize the windows size
+    size_t WINDOW_FACTOR = 80;
+    size_t WINDOW_WIDTH = (16*WINDOW_FACTOR);
+    size_t WINDOW_HEIGHT = (9*WINDOW_FACTOR);
+
+    // initialize the properties of windows
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
+    InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "img2nn");
+    SetTargetFPS(60);
+
+    Gym_Plot plot = {0};
+    Font font = LoadFontEx("./font/iosevka-regular.ttf", 72, NULL, 0);
+    SetTextureFilter(font.texture, TEXTURE_FILTER_BILINEAR);
+
+    size_t preview_width = 28;
+    size_t preview_height = 28;
+
+    Image preview_image1 = GenImageColor(preview_width, preview_height, BLACK);
+    Texture2D preview_texture1 = LoadTextureFromImage(preview_image1);
+
+    Image preview_image2 = GenImageColor(preview_width, preview_height, BLACK);
+    Texture2D preview_texture2 = LoadTextureFromImage(preview_image2);
+
+    Image preview_image3 = GenImageColor(preview_width, preview_height, BLACK);
+    Texture2D preview_texture3 = LoadTextureFromImage(preview_image3);
+
+    // region: draw two original images
+    Image original_image1 = GenImageColor(img1_width, img1_height, BLACK);
+    for(size_t y = 0; y < (size_t) img1_height; ++y) {
+        for(size_t x = 0; x < (size_t) img1_width; ++x) {
+            uint8_t pixel = img1_pixels[u*img1_width + x];
+            ImageDrawPixel(&original_image1, x, y, CLITERAL(Color) {pixel, pixel, pixel, 255});
+        }
+    }
+    Texture2D original_texture1 = LoadTextureFromImage(original_image1);
     
-    return 0;
+    Image original_image2 = GenImageColor(img2_width, img2_height, BLACK);
+    for(size_t y = 0; y < (size_t) img2_height; ++y) {
+        for(size_t x = 0; x < (size_t) img2_width; ++x) {
+            uint8_t pixel = img2_pixels[u*img2_width + x];
+            ImageDrawPixel(&original_image2, x, y, CLITERAL(Color) {pixel, pixel, pixel, 255});
+        }
+    }
+    Texture2D original_texture2 = LoadTextureFromImage(original_image2);    
+    // endregion
+    
+    
+    
+    
+    retur2 0;
+
+    
 }
