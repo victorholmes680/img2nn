@@ -1,9 +1,28 @@
 #include <stdio.h>
+#define NN_IMPLEMENTATION
+#define NN_ENABLE_GYM
 #include "nn.h"
+
+#if define(__APPLE__)
+    #define STB_IMAGE_IMPLEMENTATION
+    #define STB_IMAGE_WRITE_IMPLEMENTATION
+#endif
 #include "stb_image.h"
 #include "stb_image_write.h"
+
 #include <raylib.h>
 #include <raymath.h>
+#include <assert.h>
+
+// define global variables
+size_t arch[] = {3, 11, 11, 11, 11, 11, 1};
+size_t max_epoch = 100*1000;
+size_t batches_per_frame = 200;
+size_t batch_size = 28;
+float rate = 1.0f;
+float scroll = 0.f;
+bool paused = true;
+
 // extract the first argument from the input stream
 // and forward the pointer to next
 char *args_shift(int *argc, char ***argv) {
@@ -68,7 +87,7 @@ int main(int argc, char **argv)
 
     //==============================================================================================================
     // complete dealing with input files
-      
+    
     // this is the training data, row represent the number of samples, and column means input and output parameters
     Mat t = mat_alloc(img1_width*img1_height + img2_width*img2_height, NN_INPUT(nn).cols + NN_OUTPUT(nn).cols);
 
@@ -120,6 +139,7 @@ int main(int argc, char **argv)
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "img2nn");
     SetTargetFPS(60);
 
+    // region preivew the output we generated
     Gym_Plot plot = {0};
     Font font = LoadFontEx("./font/iosevka-regular.ttf", 72, NULL, 0);
     SetTextureFilter(font.texture, TEXTURE_FILTER_BILINEAR);
@@ -135,7 +155,9 @@ int main(int argc, char **argv)
 
     Image preview_image3 = GenImageColor(preview_width, preview_height, BLACK);
     Texture2D preview_texture3 = LoadTextureFromImage(preview_image3);
+    // endregion
 
+    
     // region: draw two original images
     Image original_image1 = GenImageColor(img1_width, img1_height, BLACK);
     for(size_t y = 0; y < (size_t) img1_height; ++y) {
@@ -153,13 +175,69 @@ int main(int argc, char **argv)
             ImageDrawPixel(&original_image2, x, y, CLITERAL(Color) {pixel, pixel, pixel, 255});
         }
     }
-    Texture2D original_texture2 = LoadTextureFromImage(original_image2);    
+    Texture2D original_texture2 = LoadTextureFromImage(original_image2);
     // endregion
+
+
+    size_t out_width = 512;
+    size_t out_height = 512;
+    uint8_t *out_pixels = malloc(sizeof(*out_pixels)*out_width*out_height);
+    assert(out_pixels != NULL);
+
+    Gym_Batch gb = {0};
+    bool rate_dragging = false;
+    bool scroll_dragging = false;
+    size_t epoch = 0;
+
+    while(!WindowShouldClose()) {
+        if(IsKeyPressed(KEY_SPACE)) {
+            paused = !paused;
+        }
+        if(IsKeyPressed(KEY_R)) {
+            epoch = 0;
+            nn_rand(nn, -1, 1);
+            plot.count = 0;
+        }
+
+        // save the merged image by scrolling rate
+        if(IsKeyPressed(KEY_S)) {
+            for(size_t y = 0; y < out_height; ++y) {
+                for(size_t x = 0; x < out_width; ++x) {
+                    MAT_AT(NN_INPUT(nn), 0, 0) = (float)x/(out_width - 1);
+                    MAT_AT(NN_INPUT(nn), 0, 1) = (float)x/(out_width - 1);
+                    MAT_AT(NN_INPUT(nn), 0, 2) = scroll;
+                    nn_forward(nn);
+                    uint8_t pixel = MAT_AT(NN_OUTPUT(nn), 0, 0)*255.f;
+                    out_pixels[y*out_width + x] = pixel;
+                }
+            }
+            const char *out_file_path = "merged_scaled.png";
+            if(!stbi_write_png(out_file_path, out_width, out_height, 1, out_pixels, out_width*sizeof(*out_pixels))) {
+                fprintf(stderr, "ERROR: could not save image %s\n", out_file_path);
+                return 1;
+            }
+            printf("Generated %s from %s\n", out_file_path, img1_file_path);
+        }
+
+        // region: update the parameters of neural network in batches
+        for(size_t i = 0; i < batches_per_frame && !paused && epoch < max_epoch; ++i) {
+            gym_process_batch(&gb, batch_size, nn, g, t, rate);
+            if(gb.finished) {
+                epoch += 1;
+                da_append(&plot, gb.cost);
+                mat_shuffle_rows(t);
+            }
+        }
+        // endregion
+
+        
+        
+    }
     
     
     
     
-    retur2 0;
+    return 0;
 
     
 }

@@ -15,6 +15,16 @@
 
 #define ARRAY_LEN(xs) sizeof((xs)) / sizeof((xs)[0])
 
+typedef struct {
+    // start index
+    size_t begin;
+    // cost for the batch
+    float cost;
+    // if this batch is finished
+    bool finished;
+} Gym_Batch;
+
+
 // define the structure of matrix for calculation of neural network
 typedef struct {
     size_t rows;
@@ -28,6 +38,9 @@ typedef struct {
 Mat mat_alloc(size_t rows, size_t cols);
 void mat_shuffle_rows(Mat m);
 void mat_rand(Mat m, float low, float high);
+void mat_dot(Mat dst, Mat a, Mat b);
+void mat_sum(Mat dst, Mat a);
+void mat_sig(Mat m);
 
 
 // define the structure of neural network
@@ -48,9 +61,14 @@ typedef struct {
 
 NN nn_alloc(size_t *arch, size_t arch_count);
 void nn_rand(NN nn, float low, float high);
-
+void nn_forward(NN nn);
 
 #ifdef NN_IMPLEMENTATION
+
+float sigmoidf(float x)
+{
+    return 1.f / (1.f + expf(-x));
+}
 
 float rand_float(void)
 {
@@ -94,7 +112,42 @@ void mat_rand(Mat m, float low, float high)
     }
 }
 
+void mat_dot(Mat dst, Mat a, Mat b)
+{
+    NN_ASSERT(a.cols == b.rows);
+    size_t n = a.cols;
+    NN_ASSERT(dst.rows == a.rows);
+    NN_ASSERT(dst.cols == b.cols);
 
+    for(size_t i = 0; i < dst.rows; ++i) {
+        for(size_t j = 0; j < dst.cols; ++j) {
+            // initialize teh dst using 0
+            MAT_AT(dst, i, j) = 0;
+            for(size_t k = 0; k < n; ++k) {
+                MAT_AT(dst, i, j) += MAT_AT(a, i, k) * MAT_AT(b, k, j);
+            }
+        }
+    }
+}
+
+void mat_sum(Mat dst, Mat a)
+{
+    NN_ASSERT(dst.rows == a.rows);
+    NN_ASSERT(dst.cols == a.cols);
+    for(size_t i = 0; i < dst.rows; ++i) {
+        for(size_t j = 0; j < dst.cols; ++j) {
+            MAT_AT(dts, i, j) += MAT_AT(a, i, j);
+        }
+    }
+}
+
+void mat_sig(Mat m) {
+    for(size_t i = 0; i < m.rows; ++i) {
+        for(size_t j = 0; j < m.cols; ++j) {
+            MAT_AT(m, i, j) = sigmoidf(MAT_AT(m, i, j));
+        }
+    }
+}
 
 NN nn_alloc(size_t *arch, size_t arch_count)
 {
@@ -134,7 +187,85 @@ void nn_rand(NN nn, float low, float high)
     }
 }
 
+
+void nn_forward(NN nn)
+{
+    for(size_t i = 0; i < nn.count; ++i) {
+        mat_dot(nn.as[i+1], nn.as[i], nn.ws[i]);
+        mat_sum(nn.as[i+1], nn.bs[i+1]);
+        mat_sig(nn.as[i+1]);
+    }
+}
+
+
 #endif // NN_IMPLEMENTATION
+
+
+#ifdef NN_ENABLE_GYM
+#define NN_ENABLE_GYM
+#include <float.h>
+#include "raylib.h"
+#include <raymath.h>
+
+typedef struct {
+    float *items;
+    size_t count;
+    size_t capacity;
+} Gym_Plot;
+
+#define DA_INIT_CAP 256
+
+#define da_append(da, item)                                                      \
+do{                                                                              \
+    if(((da))->count >= ((da))->capacity) {                                      \
+        (da)->capacity = (da)->capacity == 0 ? DA_INIT_CAP : (da)->capacity*2;   \
+        (da)->items = realloc((da)->items, (da)->capacity*sizeof(*(da)->items)); \
+        assert((da)->items != NULL && "Buy more RAM lol");                       \
+    }                                                                            \
+    (da)->items[(da)->count++] = (item);                                         \
+}while（0）                                                                      \
+
+void gym_render_nn(NN nn, float rx, float ry, float rw, float rh);
+void gym_plot(Gym_Plot plot, int rx, int ry, int rw, int rh);
+void gym_slider(float *value, bool *dragging, float rx, float ry, float rw, float rh);
+void gym_process_batch(Gym_Batch *gb, size_t batch_size, NN nn, NN g, Mat t, float rate);
+
+
+// deal with one epoch making use of all rows of matrix t
+void gym_process_batch(Gym_Batch *gb, size_t batch_size, NN nn, NN g, Mat t, float rate)
+{
+    // this is the exiting condition
+    if(gb->finished) {
+        gb->finished = false;
+        gb->begin = 0;
+        gb->cost = 0;
+    }
+
+    size_t size = batch_size;
+
+    // the last batch
+    if(gb->begin + batch_size >= t.rows) {
+        size = t.rows - gb->begin;
+    }
+
+    Mat batch_ti = {
+        .rows = size,
+        .cols = NN_INPUT(nn).cols,
+        .stride = t.stride,
+        .es = &MAT_AT(t, gb->begin, 0),
+    };
+
+    
+
+    
+}
+
+
+
+
+
+
+#endif // NN_ENABLE_GYM
 
 
 
